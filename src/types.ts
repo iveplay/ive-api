@@ -1,10 +1,12 @@
 import { DateTime, Str } from "chanfana";
 import { z } from "zod";
 
-export const Task = z.object({
-	name: Str({ example: "lorem" }),
-	slug: Str(),
-	description: Str({ required: false }),
-	completed: z.boolean().default(false),
-	due_date: DateTime(),
+export const ScriptMetadata = z.object({
+  name: Str({ example: "Script Name" }),
+  creator: Str({ example: "Creator Name" }),
+  supportUrl: Str({ example: "https://creator.com/support" }),
+  isDefault: z.boolean().default(false),
+  lastUpdated: DateTime({ required: false }),
 });
+
+export type ScriptMetadataType = z.infer<typeof ScriptMetadata>;
