@@ -1,6 +1,12 @@
 import { OpenAPIRoute, Str } from "chanfana";
 import { z } from "zod";
-import { ScriptMetadata } from "../types";
+import { Env, ScriptMetadata } from "../types";
+import {
+  ensureDefaultScript,
+  isValidScriptUrl,
+  isValidVideoUrl,
+} from "../utils/scriptUtils";
+import { Context } from "hono";
 
 export class ScriptCreate extends OpenAPIRoute {
   schema = {
@@ -62,50 +68,89 @@ export class ScriptCreate extends OpenAPIRoute {
     },
   };
 
-  async handle(c) {
-    // Check authorization
-    const apiKey = c.req.header("X-API-Key");
+  async handle(c: Context<{ Bindings: Env }>) {
+    try {
+      // Check authorization
+      const apiKey = c.req.header("X-API-Key");
+      if (apiKey !== c.env.API_KEY) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
 
-    if (apiKey != c.env.API_KEY) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
+      const data = await this.getValidatedData<typeof this.schema>();
+      const { videoUrl: encodedVideoUrl, scriptUrl: encodedScriptUrl } =
+        data.params;
+      const { metadata } = data.body;
 
-    const data = await this.getValidatedData<typeof this.schema>();
-    const { videoUrl, scriptUrl } = data.params;
-    const { metadata } = data.body;
+      // Decode the URLs
+      const videoUrl = decodeURIComponent(encodedVideoUrl);
+      const scriptUrl = decodeURIComponent(encodedScriptUrl);
 
-    metadata.lastUpdated = new Date().toISOString();
+      // Validate URLs
+      if (!isValidVideoUrl(videoUrl)) {
+        return c.json({ error: "Invalid video URL format" }, 400);
+      }
 
-    // Get existing scripts
-    let scripts = {};
-    const existingData = await c.env.IVE_SCRIPTS.get(videoUrl);
+      if (!isValidScriptUrl(scriptUrl)) {
+        return c.json(
+          {
+            error:
+              "Invalid script URL format. Must end with .funscript or .csv",
+          },
+          400
+        );
+      }
 
-    if (existingData) {
-      scripts = JSON.parse(existingData);
-    }
+      metadata.lastUpdated = new Date().toISOString();
 
-    // Update script metadata
-    scripts[scriptUrl] = {
-      ...scripts[scriptUrl],
-      ...metadata,
-    };
+      // Get existing scripts
+      let scripts = {};
+      const existingData = await c.env.IVE_SCRIPTS.get(videoUrl);
 
-    // If this is marked as default, remove default from others
-    if (metadata.isDefault) {
-      Object.keys(scripts).forEach((url) => {
-        if (url !== scriptUrl && scripts[url].isDefault) {
-          scripts[url].isDefault = false;
+      if (existingData) {
+        try {
+          scripts = JSON.parse(existingData);
+        } catch (error) {
+          console.error("Error parsing existing scripts:", error);
+          scripts = {};
         }
+      }
+
+      // Update script metadata
+      scripts[scriptUrl] = {
+        ...scripts[scriptUrl],
+        ...metadata,
+      };
+
+      // Ensure default script handling
+      if (metadata.isDefault) {
+        await ensureDefaultScript(
+          c.env.IVE_SCRIPTS,
+          videoUrl,
+          scripts,
+          scriptUrl
+        );
+      } else if (Object.keys(scripts).length === 1) {
+        // If this is the only script, make it default regardless
+        scripts[scriptUrl].isDefault = true;
+      }
+
+      // Save to KV
+      await c.env.IVE_SCRIPTS.put(videoUrl, JSON.stringify(scripts));
+
+      return c.json({
+        success: true,
+        message: "Script metadata updated",
+        data: scripts[scriptUrl],
       });
+    } catch (error) {
+      console.error("Error in scriptCreate:", error);
+      return c.json(
+        {
+          error: "Internal server error",
+          details: error instanceof Error ? error.message : String(error),
+        },
+        500
+      );
     }
-
-    // Save to KV
-    await c.env.IVE_SCRIPTS.put(videoUrl, JSON.stringify(scripts));
-
-    return c.json({
-      success: true,
-      message: "Script metadata updated",
-      data: scripts[scriptUrl],
-    });
   }
 }
