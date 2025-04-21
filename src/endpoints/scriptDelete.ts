@@ -18,6 +18,11 @@ export class ScriptDelete extends OpenAPIRoute {
           description: "Encoded script URL",
         }),
       }),
+      headers: z.object({
+        "X-API-Key": Str({
+          description: "API key for authorization",
+        }),
+      }),
     },
     responses: {
       "200": {
@@ -66,7 +71,6 @@ export class ScriptDelete extends OpenAPIRoute {
       const { videoUrl: encodedVideoUrl, scriptUrl: encodedScriptUrl } =
         data.params;
 
-      // Decode the URLs
       const videoUrl = decodeURIComponent(encodedVideoUrl);
       const scriptUrl = decodeURIComponent(encodedScriptUrl);
 

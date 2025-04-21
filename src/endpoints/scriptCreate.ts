@@ -22,6 +22,11 @@ export class ScriptCreate extends OpenAPIRoute {
           description: "Encoded script URL",
         }),
       }),
+      headers: z.object({
+        "X-API-Key": Str({
+          description: "API key for authorization",
+        }),
+      }),
       body: {
         content: {
           "application/json": {

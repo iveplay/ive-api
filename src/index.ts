@@ -6,6 +6,8 @@ import { ScriptCreate } from "./endpoints/scriptCreate";
 import { ScriptDelete } from "./endpoints/scriptDelete";
 import { Env } from "types";
 
+const BASE_PATH = "/scripts/v1";
+
 const app = new Hono<{ Bindings: Env }>();
 
 app.use(
@@ -20,7 +22,7 @@ app.use(
 );
 
 const openapi = fromHono(app, {
-  docs_url: "/",
+  docs_url: `${BASE_PATH}/`,
   schema: {
     info: {
       version: "0.1.0",
@@ -32,23 +34,16 @@ const openapi = fromHono(app, {
       description: "Find out more about IVE",
       url: "https://github.com/iveplay/ive-api",
     },
-    security: [
-      {
-        ApiKey: [],
-      },
-    ],
   },
 });
 
-const BASE_PATH = "/scripts/v1";
+// Simple health check
+openapi.get(`${BASE_PATH}/health`, (c) => {
+  return c.json({ status: "ok", timestamp: new Date().toISOString() });
+});
 
 openapi.get(`${BASE_PATH}/:videoUrl`, ScriptList);
 openapi.post(`${BASE_PATH}/:videoUrl/:scriptUrl`, ScriptCreate);
 openapi.delete(`${BASE_PATH}/:videoUrl/:scriptUrl`, ScriptDelete);
-
-// Simple health check
-app.get("/health", (c) => {
-  return c.json({ status: "ok", timestamp: new Date().toISOString() });
-});
 
 export default app;
