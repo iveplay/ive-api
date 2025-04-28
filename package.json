@@ -2,6 +2,8 @@
   "name": "ive-api",
   "version": "0.1.0",
   "private": true,
+  "author": "iveplay",
+  "license": "MIT",
   "scripts": {
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
